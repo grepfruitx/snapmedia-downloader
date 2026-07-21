@@ -2,7 +2,7 @@
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
 # Binaries for programs and plugins
-snap*
+/snapmedia-downloader
 *.exe
 *.exe~
 *.dll
@@ -11,6 +11,7 @@ snap*
 
 # Test binary, built with `go test -c`
 *.test
+builds/
 
 # Code coverage profiles and other test artifacts
 *.out
