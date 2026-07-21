@@ -1,6 +1,6 @@
 # snapmedia-downloader
 
-Download Instagram, Facebook, TikTok and Twitter (X) media via the snapsave.app / snaptik.app services. Go port of [snapsave-media-downloader](https://github.com/ahmedrangel/snapsave-media-downloader).
+Download Instagram, Facebook, TikTok and Twitter (X) media via snapsave.app / ttdownloader.tools / twitterdownloader.snapsave.app. Go port of [snapsave-media-downloader](https://github.com/ahmedrangel/snapsave-media-downloader).
 
 ## Install
 
@@ -77,15 +77,22 @@ snapmedia-downloader/
 ├── cmd/snapmedia/       # CLI
 └── internal/
     ├── urlmatch/        # platform URL regexes + normalization
-    ├── decrypt/         # snapsave.app / snaptik.app response decoding
-    ├── parser/          # HTML extraction (goquery)
+    ├── decrypt/         # snapsave.app response decoding
+    ├── parser/          # HTML/JSON extraction (goquery)
     └── httpclient/       # HTTP client with retry + proxy support
 ```
 
+## Backends per platform
+
+| Platform | Backend |
+|---|---|
+| Facebook, Instagram | `snapsave.app` |
+| TikTok | `ttdownloader.tools` |
+| Twitter (X) | `twitterdownloader.snapsave.app` |
+
 ## Known limitations
 
-- **TikTok** (`snaptik.app`) is currently broken: the site dropped the `token` input its scraping flow relies on. This affects the original JS library the same way — it's an upstream site change, not a bug in this port.
-- These are third-party scraping services with no stability guarantees; selectors may break whenever the target sites change their markup.
+These are third-party scraping services with no stability guarantees; endpoints may break or add anti-scraping measures whenever the target sites change. `snaptik.app` (the original TikTok backend) was dropped after it added a client-side bot-detection challenge (`POST /api/token` issues an encrypted puzzle that must be solved and echoed back as an `X-Verify` header) — this port does not attempt to work around active bot-detection, so TikTok now goes through `ttdownloader.tools` instead, which has no such gate at the time of writing.
 
 ## Development
 

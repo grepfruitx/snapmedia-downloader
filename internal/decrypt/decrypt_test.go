@@ -81,14 +81,3 @@ func TestDecodedSnapSaveBody(t *testing.T) {
 		t.Fatalf("decodedSnapSave() = %q, want %q", got, "<div>ok</div>")
 	}
 }
-
-func TestDecodedSnaptikBody(t *testing.T) {
-	data := `$("#download").innerHTML = "<a>dl<\/a>"; document.getElementById("inputData").remove(); `
-	got, err := decodedSnaptik(data)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != "<a>dl</a>" {
-		t.Fatalf("decodedSnaptik() = %q, want %q", got, "<a>dl</a>")
-	}
-}

@@ -15,8 +15,7 @@ const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 
 var (
 	snapsaveActionURL = "https://snapsave.app/action.php"
-	snaptikHomeURL    = "https://snaptik.app/"
-	snaptikActionURL  = "https://snaptik.app/abc2.php"
+	tiktokAPIURL      = "https://ttdownloader.tools/api/downloader.php"
 	twitterHomeURL    = "https://twitterdownloader.snapsave.app/"
 	twitterActionURL  = "https://twitterdownloader.snapsave.app/action.php"
 )
@@ -114,39 +113,17 @@ func downloadSnapSave(form url.Values, o Options) (*Data, error) {
 }
 
 func downloadTikTok(form url.Values, o Options) (*Data, error) {
-	home, err := httpclient.Do(httpclient.Request{
-		Method: "GET",
-		URL:    snaptikHomeURL,
-	}, toClientOpts(o))
-	if err != nil {
-		return nil, err
-	}
-	token, err := parser.ExtractInputValue(home, "token")
-	if err != nil {
-		return nil, err
-	}
-	form.Set("token", token)
-
 	body, err := httpclient.Do(httpclient.Request{
-		Method: "POST",
-		URL:    snaptikActionURL,
-		Headers: map[string]string{
-			"accept":       "*/*",
-			"content-type": "application/x-www-form-urlencoded",
-			"origin":       "https://snaptik.app",
-			"referer":      "https://snaptik.app/",
-		},
-		Body: form.Encode(),
+		Method:  "POST",
+		URL:     tiktokAPIURL,
+		Headers: map[string]string{"content-type": "application/x-www-form-urlencoded"},
+		Body:    form.Encode(),
 	}, toClientOpts(o))
 	if err != nil {
 		return nil, err
 	}
 
-	decoded, err := decrypt.DecryptSnaptik(body)
-	if err != nil {
-		return nil, err
-	}
-	result, err := parser.ParseSnaptik(decoded)
+	result, err := parser.ParseTikTokAPI(body)
 	if err != nil {
 		return nil, err
 	}

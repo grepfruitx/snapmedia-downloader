@@ -104,17 +104,6 @@ func decodedSnapSave(data string) (string, error) {
 	return strings.ReplaceAll(body, `\`, ""), nil
 }
 
-func decodedSnaptik(data string) (string, error) {
-	const marker = `$("#download").innerHTML = "`
-	const end = `"; document.getElementById("inputData").remove(); `
-	_, after, found := strings.Cut(data, marker)
-	if !found {
-		return "", errors.New("decrypt: download block not found")
-	}
-	body, _, _ := strings.Cut(after, end)
-	return strings.ReplaceAll(body, `\`, ""), nil
-}
-
 func DecryptSnapSave(data string) (string, error) {
 	args, err := extractArgs(data)
 	if err != nil {
@@ -125,16 +114,4 @@ func DecryptSnapSave(data string) (string, error) {
 		return "", err
 	}
 	return decodedSnapSave(decoded)
-}
-
-func DecryptSnaptik(data string) (string, error) {
-	args, err := extractArgs(data)
-	if err != nil {
-		return "", err
-	}
-	decoded, err := decodeSnapApp(args)
-	if err != nil {
-		return "", err
-	}
-	return decodedSnaptik(decoded)
 }

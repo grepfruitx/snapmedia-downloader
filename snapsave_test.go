@@ -35,22 +35,44 @@ func TestDownloadSnapSaveHTTPError(t *testing.T) {
 	}
 }
 
-func TestDownloadTikTokMissingToken(t *testing.T) {
-	home := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`<html><body>no token here</body></html>`))
+func TestDownloadTikTokAPIError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"success":false,"message":"Video not found"}`))
 	}))
-	defer home.Close()
+	defer srv.Close()
 
-	origHome := snaptikHomeURL
-	snaptikHomeURL = home.URL
-	defer func() { snaptikHomeURL = origHome }()
+	orig := tiktokAPIURL
+	tiktokAPIURL = srv.URL
+	defer func() { tiktokAPIURL = orig }()
 
 	resp := Download("https://www.tiktok.com/@user_name/video/1234567890123456789", &Options{Retry: 1})
-	if resp.Success {
-		t.Fatalf("expected failure, got %+v", resp)
+	if resp.Success || resp.Message != "Video not found" {
+		t.Fatalf("got %+v", resp)
 	}
-	if resp.Message == "" {
-		t.Fatal("expected error message")
+}
+
+func TestDownloadTikTokSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil || r.PostForm.Get("url") == "" {
+			t.Errorf("expected url form field, got %v", r.PostForm)
+		}
+		_, _ = w.Write([]byte(`{"success":true,"title":"a video","cover":"https://example.com/c.jpg","video_nowm":"https://example.com/v.mp4"}`))
+	}))
+	defer srv.Close()
+
+	orig := tiktokAPIURL
+	tiktokAPIURL = srv.URL
+	defer func() { tiktokAPIURL = orig }()
+
+	resp := Download("https://www.tiktok.com/@user_name/video/1234567890123456789", &Options{Retry: 1})
+	if !resp.Success {
+		t.Fatalf("expected success, got %+v", resp)
+	}
+	if resp.Data.Description != "a video" || resp.Data.Preview != "https://example.com/c.jpg" {
+		t.Fatalf("got %+v", resp.Data)
+	}
+	if len(resp.Data.Media) != 1 || resp.Data.Media[0].URL != "https://example.com/v.mp4" || resp.Data.Media[0].Type != MediaVideo {
+		t.Fatalf("media = %+v", resp.Data.Media)
 	}
 }
 
