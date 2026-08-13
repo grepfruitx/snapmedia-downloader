@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -78,5 +79,21 @@ func TestUnsupportedProxyScheme(t *testing.T) {
 	_, err := Do(Request{URL: "http://example.com"}, Options{Retry: 1, Proxy: "ftp://proxy.example.com"})
 	if err == nil {
 		t.Fatal("expected error for unsupported proxy scheme")
+	}
+}
+
+func TestDoTimeout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		_, _ = w.Write([]byte("late"))
+	}))
+	defer srv.Close()
+
+	_, err := Do(Request{URL: srv.URL}, Options{Retry: 1, Timeout: 50 * time.Millisecond})
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if !strings.Contains(err.Error(), "Client.Timeout") && !strings.Contains(err.Error(), "timeout") {
+		t.Fatalf("expected timeout in error, got %v", err)
 	}
 }

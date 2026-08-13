@@ -1,6 +1,7 @@
 package snapsave
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -101,13 +102,41 @@ func TestDownloadTwitterBadJSON(t *testing.T) {
 
 func TestResolveOptionsDefaults(t *testing.T) {
 	o := resolveOptions(nil)
-	if o.Retry != 1 || o.RetryDelay != 500*time.Millisecond || o.UserAgent != defaultUserAgent || o.Proxy != "" {
+	if o.Retry != 1 || o.RetryDelay != 500*time.Millisecond || o.UserAgent != defaultUserAgent || o.Proxy != "" || o.Timeout != 15*time.Second {
 		t.Fatalf("got %+v", o)
 	}
 
-	o = resolveOptions(&Options{Retry: 5, RetryDelay: 2 * time.Second, UserAgent: "custom", Proxy: "http://proxy:8080"})
-	if o.Retry != 5 || o.RetryDelay != 2*time.Second || o.UserAgent != "custom" || o.Proxy != "http://proxy:8080" {
+	o = resolveOptions(&Options{Retry: 5, RetryDelay: 2 * time.Second, UserAgent: "custom", Proxy: "http://proxy:8080", Timeout: 3 * time.Second})
+	if o.Retry != 5 || o.RetryDelay != 2*time.Second || o.UserAgent != "custom" || o.Proxy != "http://proxy:8080" || o.Timeout != 3*time.Second {
 		t.Fatalf("got %+v", o)
+	}
+
+	o = resolveOptions(&Options{Timeout: 0})
+	if o.Timeout != 0 {
+		t.Fatalf("expected explicit zero timeout override, got %+v", o)
+	}
+}
+
+func TestDownloadWithContextTimeout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	orig := snapsaveActionURL
+	snapsaveActionURL = srv.URL
+	defer func() { snapsaveActionURL = orig }()
+
+	resp := DownloadWithContext(ctx, "https://www.facebook.com/watch?v=1234567890123456", &Options{Retry: 1, Timeout: 200 * time.Millisecond})
+	if resp.Success {
+		t.Fatalf("expected timeout failure, got %+v", resp)
+	}
+	if resp.Message == "" {
+		t.Fatal("expected error message")
 	}
 }
 

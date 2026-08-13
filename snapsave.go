@@ -1,6 +1,7 @@
 package snapsave
 
 import (
+	"context"
 	"encoding/json"
 	"net/url"
 	"time"
@@ -21,7 +22,12 @@ var (
 )
 
 func resolveOptions(opts *Options) Options {
-	resolved := Options{Retry: 1, RetryDelay: 500 * time.Millisecond, UserAgent: defaultUserAgent}
+	resolved := Options{
+		Retry:      1,
+		RetryDelay: 500 * time.Millisecond,
+		UserAgent:  defaultUserAgent,
+		Timeout:    15 * time.Second,
+	}
 	if opts == nil {
 		return resolved
 	}
@@ -35,11 +41,12 @@ func resolveOptions(opts *Options) Options {
 		resolved.UserAgent = opts.UserAgent
 	}
 	resolved.Proxy = opts.Proxy
+	resolved.Timeout = opts.Timeout
 	return resolved
 }
 
 func toClientOpts(o Options) httpclient.Options {
-	return httpclient.Options{Retry: o.Retry, RetryDelay: o.RetryDelay, UserAgent: o.UserAgent, Proxy: o.Proxy}
+	return httpclient.Options{Retry: o.Retry, RetryDelay: o.RetryDelay, UserAgent: o.UserAgent, Proxy: o.Proxy, Timeout: o.Timeout}
 }
 
 func toData(r *parser.Result) *Data {
@@ -60,6 +67,16 @@ func toData(r *parser.Result) *Data {
 // Twitter (X) URL. It never returns a Go error; failures are reported via
 // Response.Success/Message, mirroring the original API's response contract.
 func Download(rawURL string, opts *Options) *Response {
+	return DownloadWithContext(context.Background(), rawURL, opts)
+}
+
+// DownloadWithContext fetches media while respecting the provided context.
+// If the context is canceled or a timeout is reached, the request is aborted.
+func DownloadWithContext(ctx context.Context, rawURL string, opts *Options) *Response {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	o := resolveOptions(opts)
 
 	if !urlmatch.IsValid(rawURL) {
@@ -72,11 +89,11 @@ func Download(rawURL string, opts *Options) *Response {
 	var err error
 	switch {
 	case urlmatch.TikTok.MatchString(rawURL):
-		data, err = downloadTikTok(form, o)
+		data, err = downloadTikTokWithContext(ctx, form, o)
 	case urlmatch.Twitter.MatchString(rawURL):
-		data, err = downloadTwitter(form, o)
+		data, err = downloadTwitterWithContext(ctx, form, o)
 	default:
-		data, err = downloadSnapSave(form, o)
+		data, err = downloadSnapSaveWithContext(ctx, form, o)
 	}
 	if err != nil {
 		return &Response{Success: false, Message: err.Error()}
@@ -85,7 +102,11 @@ func Download(rawURL string, opts *Options) *Response {
 }
 
 func downloadSnapSave(form url.Values, o Options) (*Data, error) {
-	body, err := httpclient.Do(httpclient.Request{
+	return downloadSnapSaveWithContext(context.Background(), form, o)
+}
+
+func downloadSnapSaveWithContext(ctx context.Context, form url.Values, o Options) (*Data, error) {
+	body, err := httpclient.DoWithContext(httpclient.Request{
 		Method: "POST",
 		URL:    snapsaveActionURL,
 		Query:  map[string]string{"lang": "en"},
@@ -96,7 +117,7 @@ func downloadSnapSave(form url.Values, o Options) (*Data, error) {
 			"referer":      "https://snapsave.app/",
 		},
 		Body: form.Encode(),
-	}, toClientOpts(o))
+	}, toClientOpts(o), ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -113,12 +134,16 @@ func downloadSnapSave(form url.Values, o Options) (*Data, error) {
 }
 
 func downloadTikTok(form url.Values, o Options) (*Data, error) {
-	body, err := httpclient.Do(httpclient.Request{
+	return downloadTikTokWithContext(context.Background(), form, o)
+}
+
+func downloadTikTokWithContext(ctx context.Context, form url.Values, o Options) (*Data, error) {
+	body, err := httpclient.DoWithContext(httpclient.Request{
 		Method:  "POST",
 		URL:     tiktokAPIURL,
 		Headers: map[string]string{"content-type": "application/x-www-form-urlencoded"},
 		Body:    form.Encode(),
-	}, toClientOpts(o))
+	}, toClientOpts(o), ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -135,10 +160,14 @@ type twitterActionResponse struct {
 }
 
 func downloadTwitter(form url.Values, o Options) (*Data, error) {
-	home, err := httpclient.Do(httpclient.Request{
+	return downloadTwitterWithContext(context.Background(), form, o)
+}
+
+func downloadTwitterWithContext(ctx context.Context, form url.Values, o Options) (*Data, error) {
+	home, err := httpclient.DoWithContext(httpclient.Request{
 		Method: "GET",
 		URL:    twitterHomeURL,
-	}, toClientOpts(o))
+	}, toClientOpts(o), ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +177,7 @@ func downloadTwitter(form url.Values, o Options) (*Data, error) {
 	}
 	form.Set("token", token)
 
-	body, err := httpclient.Do(httpclient.Request{
+	body, err := httpclient.DoWithContext(httpclient.Request{
 		Method: "POST",
 		URL:    twitterActionURL,
 		Headers: map[string]string{
@@ -158,7 +187,7 @@ func downloadTwitter(form url.Values, o Options) (*Data, error) {
 			"referer":      "https://twitterdownloader.snapsave.app/",
 		},
 		Body: form.Encode(),
-	}, toClientOpts(o))
+	}, toClientOpts(o), ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -39,4 +39,7 @@ type Options struct {
 	UserAgent string
 	// Proxy is a proxy URL (http, https, or socks5), e.g. "http://user:pass@host:port".
 	Proxy string
+	// Timeout is the maximum time allowed for a request before it is aborted.
+	// When set, the library stops waiting even if the upstream service hangs.
+	Timeout time.Duration
 }

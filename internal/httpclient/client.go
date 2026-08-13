@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ type Options struct {
 	RetryDelay time.Duration
 	UserAgent  string
 	Proxy      string
+	Timeout    time.Duration
 }
 
 type Request struct {
@@ -25,11 +27,19 @@ type Request struct {
 }
 
 func Do(req Request, opts Options) (string, error) {
+	return DoWithContext(req, opts, context.Background())
+}
+
+func DoWithContext(req Request, opts Options, ctx context.Context) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	transport, err := newTransport(opts.Proxy)
 	if err != nil {
 		return "", err
 	}
-	client := &http.Client{Transport: transport}
+	client := &http.Client{Transport: transport, Timeout: opts.Timeout}
 
 	attempts := opts.Retry
 	if attempts < 1 {
@@ -41,7 +51,7 @@ func Do(req Request, opts Options) (string, error) {
 		if i > 0 && opts.RetryDelay > 0 {
 			time.Sleep(opts.RetryDelay)
 		}
-		body, err := do(client, req, opts.UserAgent)
+		body, err := do(client, req, opts.UserAgent, ctx)
 		if err == nil {
 			return body, nil
 		}
@@ -50,7 +60,7 @@ func Do(req Request, opts Options) (string, error) {
 	return "", lastErr
 }
 
-func do(client *http.Client, r Request, userAgent string) (string, error) {
+func do(client *http.Client, r Request, userAgent string, ctx context.Context) (string, error) {
 	method := r.Method
 	if method == "" {
 		method = http.MethodGet
@@ -74,7 +84,7 @@ func do(client *http.Client, r Request, userAgent string) (string, error) {
 		body = strings.NewReader(r.Body)
 	}
 
-	httpReq, err := http.NewRequest(method, reqURL, body)
+	httpReq, err := http.NewRequestWithContext(ctx, method, reqURL, body)
 	if err != nil {
 		return "", fmt.Errorf("httpclient: %w", err)
 	}
