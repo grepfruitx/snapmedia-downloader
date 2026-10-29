@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/grepfruitx/snapmedia-downloader/internal/decrypt"
 	"github.com/grepfruitx/snapmedia-downloader/internal/httpclient"
 	"github.com/grepfruitx/snapmedia-downloader/internal/parser"
 	"github.com/grepfruitx/snapmedia-downloader/internal/urlmatch"
@@ -15,10 +14,11 @@ import (
 const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
 
 var (
-	snapsaveActionURL = "https://snapsave.app/action.php"
-	tiktokAPIURL      = "https://ttdownloader.tools/api/downloader.php"
-	twitterHomeURL    = "https://twitterdownloader.snapsave.app/"
-	twitterActionURL  = "https://twitterdownloader.snapsave.app/action.php"
+	fastdlSearchURL  = "https://fastdl.to/api/ajaxSearch"
+	savefSearchURL   = "https://savef.app/api/ajaxSearch"
+	tiktokAPIURL     = "https://ttdownloader.tools/api/downloader.php"
+	twitterHomeURL   = "https://twitterdownloader.snapsave.app/"
+	twitterActionURL = "https://twitterdownloader.snapsave.app/action.php"
 )
 
 func resolveOptions(opts *Options) Options {
@@ -92,8 +92,10 @@ func DownloadWithContext(ctx context.Context, rawURL string, opts *Options) *Res
 		data, err = downloadTikTokWithContext(ctx, form, o)
 	case urlmatch.Twitter.MatchString(rawURL):
 		data, err = downloadTwitterWithContext(ctx, form, o)
+	case urlmatch.Instagram.MatchString(rawURL):
+		data, err = downloadAjaxSearchWithContext(ctx, fastdlSearchURL, form.Get("url"), parser.ParseFastDL, o)
 	default:
-		data, err = downloadSnapSaveWithContext(ctx, form, o)
+		data, err = downloadAjaxSearchWithContext(ctx, savefSearchURL, form.Get("url"), parser.ParseSaveF, o)
 	}
 	if err != nil {
 		return &Response{Success: false, Message: err.Error()}
@@ -101,32 +103,36 @@ func DownloadWithContext(ctx context.Context, rawURL string, opts *Options) *Res
 	return &Response{Success: true, Data: data}
 }
 
-func downloadSnapSave(form url.Values, o Options) (*Data, error) {
-	return downloadSnapSaveWithContext(context.Background(), form, o)
-}
-
-func downloadSnapSaveWithContext(ctx context.Context, form url.Values, o Options) (*Data, error) {
+// downloadAjaxSearchWithContext queries an /api/ajaxSearch endpoint
+// (fastdl.to for Instagram, savef.app for Facebook) and parses the HTML it
+// returns with parse.
+func downloadAjaxSearchWithContext(ctx context.Context, searchURL, mediaURL string, parse func(string) (*parser.Result, error), o Options) (*Data, error) {
+	u, err := url.Parse(searchURL)
+	if err != nil {
+		return nil, err
+	}
+	origin := u.Scheme + "://" + u.Host
+	form := url.Values{"q": {mediaURL}, "t": {"media"}, "lang": {"en"}, "v": {"v2"}}
 	body, err := httpclient.DoWithContext(httpclient.Request{
 		Method: "POST",
-		URL:    snapsaveActionURL,
-		Query:  map[string]string{"lang": "en"},
+		URL:    searchURL,
 		Headers: map[string]string{
-			"accept":       "*/*",
-			"content-type": "application/x-www-form-urlencoded",
-			"origin":       "https://snapsave.app",
-			"referer":      "https://snapsave.app/",
+			"accept":           "*/*",
+			"content-type":     "application/x-www-form-urlencoded; charset=UTF-8",
+			"origin":           origin,
+			"referer":          origin + "/en",
+			"x-requested-with": "XMLHttpRequest",
 		},
 		Body: form.Encode(),
 	}, toClientOpts(o), ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	decoded, err := decrypt.DecryptSnapSave(body)
+	html, err := parser.ParseAjaxSearch(body)
 	if err != nil {
 		return nil, err
 	}
-	result, err := parser.ParseSnapSave(decoded)
+	result, err := parse(html)
 	if err != nil {
 		return nil, err
 	}

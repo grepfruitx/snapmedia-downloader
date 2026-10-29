@@ -1,6 +1,6 @@
 # snapmedia-downloader
 
-Download Instagram, Facebook, TikTok and Twitter (X) media via snapsave.app / ttdownloader.tools / twitterdownloader.snapsave.app. Go port of [snapsave-media-downloader](https://github.com/ahmedrangel/snapsave-media-downloader).
+Download Instagram, Facebook, TikTok and Twitter (X) media via fastdl.to / savef.app / ttdownloader.tools / twitterdownloader.snapsave.app. Go port of [snapsave-media-downloader](https://github.com/ahmedrangel/snapsave-media-downloader).
 
 ## Install
 
@@ -77,7 +77,7 @@ snapmedia-downloader/
 ├── cmd/snapmedia/       # CLI
 └── internal/
     ├── urlmatch/        # platform URL regexes + normalization
-    ├── decrypt/         # snapsave.app response decoding
+    ├── decrypt/         # snapsave.app response decoding (legacy, unused)
     ├── parser/          # HTML/JSON extraction (goquery)
     └── httpclient/       # HTTP client with retry + proxy support
 ```
@@ -86,13 +86,16 @@ snapmedia-downloader/
 
 | Platform | Backend |
 |---|---|
-| Facebook, Instagram | `snapsave.app` |
+| Instagram (posts, reels, carousels, stories) | `fastdl.to` |
+| Facebook | `savef.app` |
 | TikTok | `ttdownloader.tools` |
 | Twitter (X) | `twitterdownloader.snapsave.app` |
 
 ## Known limitations
 
 These are third-party scraping services with no stability guarantees; endpoints may break or add anti-scraping measures whenever the target sites change. `snaptik.app` (the original TikTok backend) was dropped after it added a client-side bot-detection challenge (`POST /api/token` issues an encrypted puzzle that must be solved and echoed back as an `X-Verify` header) — this port does not attempt to work around active bot-detection, so TikTok now goes through `ttdownloader.tools` instead, which has no such gate at the time of writing.
+
+`snapsave.app` stopped serving Instagram and Facebook and now redirects those links to `fastdl.to` and `savef.app`, which share the same `/api/ajaxSearch` endpoint. For Facebook only the best directly downloadable MP4 quality is returned; qualities that require server-side rendering are skipped. `savef.app` rate-limits bursts with HTTP 429.
 
 ## Development
 

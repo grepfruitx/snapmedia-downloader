@@ -17,15 +17,15 @@ func TestDownloadInvalidURL(t *testing.T) {
 	}
 }
 
-func TestDownloadSnapSaveHTTPError(t *testing.T) {
+func TestDownloadFacebookHTTPError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv.Close()
 
-	orig := snapsaveActionURL
-	snapsaveActionURL = srv.URL
-	defer func() { snapsaveActionURL = orig }()
+	orig := savefSearchURL
+	savefSearchURL = srv.URL
+	defer func() { savefSearchURL = orig }()
 
 	resp := Download("https://www.facebook.com/watch?v=1234567890123456", &Options{Retry: 1})
 	if resp.Success {
@@ -127,9 +127,9 @@ func TestDownloadWithContextTimeout(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	orig := snapsaveActionURL
-	snapsaveActionURL = srv.URL
-	defer func() { snapsaveActionURL = orig }()
+	orig := savefSearchURL
+	savefSearchURL = srv.URL
+	defer func() { savefSearchURL = orig }()
 
 	resp := DownloadWithContext(ctx, "https://www.facebook.com/watch?v=1234567890123456", &Options{Retry: 1, Timeout: 200 * time.Millisecond})
 	if resp.Success {
@@ -157,5 +157,40 @@ func TestToData(t *testing.T) {
 	}
 	if d.Media[1].Type != MediaImage || d.Media[1].Thumbnail != "https://example.com/t.jpg" {
 		t.Errorf("media[1] = %+v", d.Media[1])
+	}
+}
+
+func TestDownloadInstagramFastDL(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil || r.PostForm.Get("q") != "https://www.instagram.com/p/Defd2kYAYK6/" || r.PostForm.Get("t") != "media" {
+			t.Errorf("unexpected form %v", r.PostForm)
+		}
+		_, _ = w.Write([]byte(`{"status":"ok","p":"instagram","v":"v1","data":"<ul><li><div class=\"download-items\"><div class=\"download-items__btn\"><a href=\"https://dl.snapcdn.app/saveinsta?token=a\" title=\"Download Image\">Download Image</a></div></div></li></ul>"}`))
+	}))
+	defer srv.Close()
+
+	orig := fastdlSearchURL
+	fastdlSearchURL = srv.URL
+	defer func() { fastdlSearchURL = orig }()
+
+	resp := Download("https://www.instagram.com/p/Defd2kYAYK6/?img_index=2&exln=Znp3", &Options{Retry: 1})
+	if !resp.Success || len(resp.Data.Media) != 1 || resp.Data.Media[0].Type != MediaImage {
+		t.Fatalf("got %+v", resp)
+	}
+}
+
+func TestDownloadInstagramFastDLMess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"ok","p":"instagram","mess":"Error: Video is private."}`))
+	}))
+	defer srv.Close()
+
+	orig := fastdlSearchURL
+	fastdlSearchURL = srv.URL
+	defer func() { fastdlSearchURL = orig }()
+
+	resp := Download("https://www.instagram.com/reel/C51YHfWJwHK/", &Options{Retry: 1})
+	if resp.Success || resp.Message != "Error: Video is private." {
+		t.Fatalf("got %+v", resp)
 	}
 }
